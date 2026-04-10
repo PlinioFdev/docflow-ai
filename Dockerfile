@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
+ENV PYTHONPATH=/app/backend
 ENV DJANGO_SETTINGS_MODULE=config.settings
 
 EXPOSE 8000
