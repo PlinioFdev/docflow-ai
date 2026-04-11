@@ -1,9 +1,29 @@
 import logging
 
+from asgiref.sync import async_to_sync
 from celery import shared_task
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _notify_ws(workspace_id: str, job) -> None:
+    """Push a job status update to all WebSocket clients in the workspace group."""
+    from documents.consumers import DocumentConsumer
+
+    job_data = {
+        "id": str(job.id),
+        "document_id": str(job.document_id),
+        "pipeline_id": str(job.pipeline_id) if job.pipeline_id else None,
+        "status": job.status,
+        "confidence_score": job.confidence_score,
+        "needs_review": job.needs_review,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+    }
+    try:
+        async_to_sync(DocumentConsumer.send_job_update)(workspace_id, job_data)
+    except Exception:
+        logger.warning("WebSocket notify failed for job %s", job.id)
 
 
 @shared_task
@@ -17,6 +37,8 @@ def process_document_task(document_id: str, job_id: str = None):
     except Document.DoesNotExist:
         logger.error("Document %s not found", document_id)
         return
+
+    workspace_id = str(document.workspace_id)
 
     document.status = Document.DocumentStatus.PROCESSING
     document.save(update_fields=["status", "updated_at"])
@@ -36,6 +58,8 @@ def process_document_task(document_id: str, job_id: str = None):
             document=document,
             status=ProcessingJob.JobStatus.PROCESSING,
         )
+
+    _notify_ws(workspace_id, job)
 
     try:
         if job.pipeline:
@@ -60,6 +84,8 @@ def process_document_task(document_id: str, job_id: str = None):
         )
         document.save(update_fields=["status", "updated_at"])
 
+        _notify_ws(workspace_id, job)
+
     except Exception:
         logger.exception("Error processing document %s", document_id)
         job.status = ProcessingJob.JobStatus.FAILED
@@ -68,3 +94,5 @@ def process_document_task(document_id: str, job_id: str = None):
 
         document.status = Document.DocumentStatus.FAILED
         document.save(update_fields=["status", "updated_at"])
+
+        _notify_ws(workspace_id, job)

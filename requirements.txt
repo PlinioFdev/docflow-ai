@@ -11,4 +11,5 @@ Pillow
 pytesseract
 channels
 channels-redis
+daphne
 drf-spectacular
