@@ -1,0 +1,6 @@
+INVOICE #001
+Date: 2026-04-11
+Vendor: Acme Corp
+Amount: ,500.00
+Due Date: 2026-05-11
+Description: Software development services

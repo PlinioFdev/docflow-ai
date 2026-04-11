@@ -6,7 +6,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 app = Celery("docflow")
 app.config_from_object("django.conf:settings", namespace="CELERY")
-app.autodiscover_tasks()
+app.autodiscover_tasks(['ai'])
 
 
 @app.task(bind=True)

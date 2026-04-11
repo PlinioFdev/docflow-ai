@@ -5,6 +5,6 @@ from .views import DocumentViewSet, PipelineViewSet, ProcessingJobViewSet
 router = DefaultRouter()
 router.register(r"documents", DocumentViewSet, basename="document")
 router.register(r"pipelines", PipelineViewSet, basename="pipeline")
-router.register(r"jobs", ProcessingJobViewSet, basename="processingjob")
+router.register(r"processing-jobs", ProcessingJobViewSet, basename="processingjob")
 
 urlpatterns = router.urls
