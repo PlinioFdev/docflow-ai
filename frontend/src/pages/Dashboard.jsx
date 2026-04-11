@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Upload, Wifi, WifiOff, RefreshCw, GitBranch, ClipboardList, BarChart2, LogOut } from 'lucide-react'
+import { Upload, Wifi, WifiOff, RefreshCw, GitBranch, ClipboardList, BarChart2, LogOut, ChevronDown } from 'lucide-react'
 import client from '../api/client'
 import useWebSocket from '../hooks/useWebSocket'
 import DocumentCard from '../components/DocumentCard'
@@ -17,18 +17,35 @@ const STATUS_FILTERS = [
   { id: 'failed',     label: 'Failed' },
 ]
 
+const DOC_TYPE_OPTIONS = [
+  { value: 'auto',     label: 'Auto-detect' },
+  { value: 'invoice',  label: 'Invoice' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'report',   label: 'Report' },
+  { value: 'other',    label: 'Other' },
+]
+
+const TYPE_COLORS = {
+  invoice:  'bg-indigo-900/50 text-indigo-300 border-indigo-800/50',
+  contract: 'bg-violet-900/50 text-violet-300 border-violet-800/50',
+  report:   'bg-sky-900/50 text-sky-300 border-sky-800/50',
+  other:    'bg-slate-700/60 text-slate-300 border-slate-600/50',
+}
+
 function getWorkspaceId() {
   return localStorage.getItem('workspace_id') ?? ''
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [documents, setDocuments] = useState([])
-  const [loading, setLoading]     = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver]   = useState(false)
+  const [documents, setDocuments]     = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [dragOver, setDragOver]       = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedDoc, setSelectedDoc]   = useState(null)
+  const [docType, setDocType]           = useState('auto')
+  // Batch upload progress: null | { current: number, total: number }
+  const [uploadProgress, setUploadProgress] = useState(null)
   const fileInputRef = useRef(null)
   const pollTimers   = useRef({})
 
@@ -84,29 +101,36 @@ export default function Dashboard() {
         doc.id === update.document_id ? { ...doc, status: update.status } : doc
       )
     )
-    // Refresh modal if it's open for the updated document
     setSelectedDoc((prev) =>
       prev?.id === update.document_id ? { ...prev, status: update.status } : prev
     )
   }, [lastMessage])
 
-  const uploadFile = async (file) => {
-    if (!file) return
-    setUploading(true)
+  const uploadSingleFile = async (file, resolvedType) => {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('name', file.name)
     fd.append('workspace', getWorkspaceId())
-    fd.append('doc_type', 'other')
-    try {
-      const { data } = await client.post('/api/v1/documents/', fd)
-      setDocuments((prev) => [data, ...prev])
-      scheduleDocPoll(data.id)
-    } catch (err) {
-      console.error('Upload failed', err)
-    } finally {
-      setUploading(false)
+    fd.append('doc_type', resolvedType === 'auto' ? 'other' : resolvedType)
+    const { data } = await client.post('/api/v1/documents/', fd)
+    setDocuments((prev) => [data, ...prev])
+    scheduleDocPoll(data.id)
+    return data
+  }
+
+  const uploadFiles = async (files) => {
+    if (!files.length) return
+    const resolvedType = docType
+    setUploadProgress({ current: 0, total: files.length })
+    for (let i = 0; i < files.length; i++) {
+      setUploadProgress({ current: i + 1, total: files.length })
+      try {
+        await uploadSingleFile(files[i], resolvedType)
+      } catch (err) {
+        console.error(`Upload failed for ${files[i].name}:`, err)
+      }
     }
+    setUploadProgress(null)
   }
 
   const handleLogout = () => {
@@ -119,7 +143,14 @@ export default function Dashboard() {
   const onDrop = (e) => {
     e.preventDefault()
     setDragOver(false)
-    uploadFile(e.dataTransfer.files[0])
+    const files = Array.from(e.dataTransfer.files)
+    uploadFiles(files)
+  }
+
+  const onFileChange = (e) => {
+    const files = Array.from(e.target.files)
+    e.target.value = ''   // reset so same file can be re-selected
+    uploadFiles(files)
   }
 
   const filteredDocuments = statusFilter === 'all'
@@ -130,6 +161,8 @@ export default function Dashboard() {
 
   const processingCount = documents.filter((d) => ACTIVE_STATUSES.has(d.status)).length
   const reviewCount     = documents.filter((d) => d.status === 'review').length
+  const isUploading     = uploadProgress !== null
+  const selectedTypeOption = DOC_TYPE_OPTIONS.find((o) => o.value === docType)
 
   return (
     <div className="min-h-screen bg-surface">
@@ -184,29 +217,73 @@ export default function Dashboard() {
         )}
 
         {/* Upload area */}
-        <section>
-          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider mb-3">Upload</h2>
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium text-slate-400 uppercase tracking-wider">Upload</h2>
+
+          {/* Document type selector */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500">Document type:</span>
+            <div className="relative">
+              <select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                className="appearance-none bg-surface-2 border border-surface-3 text-sm text-slate-200 rounded-lg pl-3 pr-8 py-1.5 focus:outline-none focus:border-brand/60 transition-colors cursor-pointer"
+              >
+                {DOC_TYPE_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            </div>
+            {docType !== 'auto' && (
+              <span className={`text-xs px-2.5 py-1 rounded-full border font-medium capitalize ${TYPE_COLORS[docType]}`}>
+                {selectedTypeOption?.label}
+              </span>
+            )}
+            {docType === 'auto' && (
+              <span className="text-xs text-slate-600 italic">Type will be set to "other"; detect via pipeline</span>
+            )}
+          </div>
+
+          {/* Drop zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             onDrop={onDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl px-6 py-12 cursor-pointer transition-colors ${
-              dragOver
-                ? 'border-brand bg-brand/5'
-                : 'border-surface-3 hover:border-brand/40 hover:bg-surface-1'
+            onClick={() => !isUploading && fileInputRef.current?.click()}
+            className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl px-6 py-12 transition-colors ${
+              isUploading
+                ? 'border-brand/40 cursor-default'
+                : dragOver
+                ? 'border-brand bg-brand/5 cursor-pointer'
+                : 'border-surface-3 hover:border-brand/40 hover:bg-surface-1 cursor-pointer'
             }`}
           >
-            <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => uploadFile(e.target.files[0])} />
-            {uploading
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onFileChange} />
+            {isUploading
               ? <RefreshCw className="w-8 h-8 text-brand animate-spin" />
               : <Upload className="w-8 h-8 text-slate-500" />
             }
             <div className="text-center">
-              <p className="text-sm text-slate-300">
-                {uploading ? 'Uploading…' : 'Drop a file here or click to browse'}
-              </p>
-              <p className="text-xs text-slate-600 mt-1">PDF, DOCX, TXT, images</p>
+              {isUploading ? (
+                <>
+                  <p className="text-sm font-medium text-indigo-300">
+                    Uploading {uploadProgress.current} of {uploadProgress.total}…
+                  </p>
+                  {/* Progress bar */}
+                  <div className="mt-2 w-48 h-1.5 bg-surface-3 rounded-full overflow-hidden mx-auto">
+                    <div
+                      className="h-full bg-brand rounded-full transition-all duration-300"
+                      style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-300">Drop files here or click to browse</p>
+                  <p className="text-xs text-slate-600 mt-1">Multiple files supported · PDF, DOCX, TXT, images</p>
+                </>
+              )}
             </div>
           </div>
         </section>
