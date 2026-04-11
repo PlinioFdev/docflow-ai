@@ -7,9 +7,10 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task
-def process_document_task(document_id: str):
+def process_document_task(document_id: str, job_id: str = None):
     from documents.models import Document, ProcessingJob
     from ai.processor import DocumentProcessor
+    from documents.pipeline_runner import PipelineRunner
 
     try:
         document = Document.objects.get(id=document_id)
@@ -20,14 +21,29 @@ def process_document_task(document_id: str):
     document.status = Document.DocumentStatus.PROCESSING
     document.save(update_fields=["status", "updated_at"])
 
-    job = ProcessingJob.objects.create(
-        document=document,
-        status=ProcessingJob.JobStatus.PROCESSING,
-    )
+    if job_id:
+        try:
+            job = ProcessingJob.objects.get(id=job_id)
+        except ProcessingJob.DoesNotExist:
+            logger.error("ProcessingJob %s not found", job_id)
+            document.status = Document.DocumentStatus.FAILED
+            document.save(update_fields=["status", "updated_at"])
+            return
+        job.status = ProcessingJob.JobStatus.PROCESSING
+        job.save(update_fields=["status"])
+    else:
+        job = ProcessingJob.objects.create(
+            document=document,
+            status=ProcessingJob.JobStatus.PROCESSING,
+        )
 
     try:
-        processor = DocumentProcessor()
-        result = processor.extract_fields(document.file.path, document.doc_type)
+        if job.pipeline:
+            runner = PipelineRunner(job.pipeline, document)
+            result = runner.run()
+        else:
+            processor = DocumentProcessor()
+            result = processor.extract_fields(document.file.path, document.doc_type)
 
         overall_confidence = result.get("overall_confidence", 0.0)
         needs_review = overall_confidence < 0.8
