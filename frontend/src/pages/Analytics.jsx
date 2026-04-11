@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LayoutDashboard, GitBranch, ClipboardList, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, GitBranch, ClipboardList, BarChart2, Download } from 'lucide-react'
 import client from '../api/client'
 
 const STATUS_META = {
@@ -44,6 +44,31 @@ export default function Analytics() {
 
   const maxCount = Math.max(1, ...Object.values(byStatus))
 
+  const handleExportCSV = () => {
+    const jobMap = Object.fromEntries(jobs.map((j) => [j.document, j]))
+    const rows = [
+      ['document_name', 'doc_type', 'status', 'confidence_score', 'uploaded_at'],
+      ...docs.map((d) => {
+        const job = jobMap[d.id]
+        return [
+          `"${(d.name ?? '').replace(/"/g, '""')}"`,
+          d.doc_type ?? '',
+          d.status ?? '',
+          job?.confidence_score != null ? Math.round(job.confidence_score * 100) + '%' : '',
+          d.uploaded_at ? new Date(d.uploaded_at).toISOString().slice(0, 10) : '',
+        ]
+      }),
+    ]
+    const csv = rows.map((r) => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'docflow-analytics.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const statCards = [
     { label: 'Total documents',     value: total,          color: 'text-slate-100' },
     { label: 'Completed',           value: byStatus.completed ?? 0,  color: 'text-emerald-400' },
@@ -83,7 +108,16 @@ export default function Analytics() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
-        <h1 className="text-xl font-semibold text-slate-100">Analytics</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-slate-100">Analytics</h1>
+          <button
+            onClick={handleExportCSV}
+            disabled={loading || docs.length === 0}
+            className="flex items-center gap-2 bg-surface-1 hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed border border-surface-3 text-slate-300 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+        </div>
 
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

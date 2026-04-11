@@ -11,6 +11,7 @@ export default function Register() {
     password2: '',
     first_name: '',
     last_name: '',
+    workspace_name: '',
   })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
@@ -65,6 +66,21 @@ export default function Register() {
                   {fieldError(name)}
                 </div>
               ))}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Company / Workspace name <span className="text-slate-600 font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                name="workspace_name"
+                value={form.workspace_name}
+                onChange={handleChange}
+                placeholder="Acme Corp"
+                className="w-full bg-surface-2 border border-surface-3 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-brand/60 transition-colors"
+              />
+              {fieldError('workspace_name')}
             </div>
 
             {[

@@ -85,6 +85,8 @@ export default function PipelineBuilder() {
 
   const addStage    = (type) => setStages((prev) => [...prev, newStage(type)])
   const removeStage = (id)   => setStages((prev) => prev.filter((s) => s.id !== id))
+  const updateStage = (id, patch) =>
+    setStages((prev) => prev.map((s) => s.id === id ? { ...s, ...patch } : s))
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -186,7 +188,7 @@ export default function PipelineBuilder() {
                 <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                   <div className="space-y-2">
                     {stages.map((stage, i) => (
-                      <PipelineStageCard key={stage.id} stage={stage} index={i} onRemove={removeStage} />
+                      <PipelineStageCard key={stage.id} stage={stage} index={i} onRemove={removeStage} onUpdate={updateStage} />
                     ))}
                   </div>
                 </SortableContext>

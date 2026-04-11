@@ -112,9 +112,23 @@ export default function ReviewQueue() {
             ))}
           </div>
         ) : jobs.length === 0 ? (
-          <div className="text-center py-20 text-slate-600">
-            <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Queue is clear — nothing to review.</p>
+          <div className="text-center py-20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-900/20 border border-emerald-900/30 mb-5">
+              <CheckCircle className="w-8 h-8 text-emerald-500 opacity-70" />
+            </div>
+            <h2 className="text-base font-semibold text-slate-300 mb-2">All caught up!</h2>
+            <p className="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed mb-1">
+              No documents need review right now.
+            </p>
+            <p className="text-xs text-slate-600 max-w-xs mx-auto leading-relaxed mb-6">
+              Jobs where AI confidence drops below 80% will appear here for manual verification.
+            </p>
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 bg-surface-2 hover:bg-surface-3 border border-surface-3 text-slate-300 text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
+            >
+              <LayoutDashboard className="w-4 h-4" /> Go to Dashboard
+            </Link>
           </div>
         ) : (
           <div className="space-y-6">

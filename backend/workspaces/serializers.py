@@ -26,6 +26,7 @@ class RegisterSerializer(serializers.Serializer):
     password2 = serializers.CharField(write_only=True)
     first_name = serializers.CharField()
     last_name = serializers.CharField()
+    workspace_name = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -41,6 +42,7 @@ class RegisterSerializer(serializers.Serializer):
     def create(self, validated_data):
         validated_data.pop("password2")
         password = validated_data.pop("password")
+        custom_workspace_name = validated_data.pop("workspace_name", "")
         email = validated_data["email"]
         first_name = validated_data["first_name"]
         last_name = validated_data["last_name"]
@@ -53,7 +55,7 @@ class RegisterSerializer(serializers.Serializer):
             last_name=last_name,
         )
 
-        workspace_name = f"{first_name}'s Workspace"
+        workspace_name = custom_workspace_name.strip() or f"{first_name}'s Workspace"
         base_slug = slugify(workspace_name)
         slug = base_slug
         counter = 1
