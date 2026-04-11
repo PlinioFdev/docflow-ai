@@ -30,12 +30,18 @@ DocFlow AI is a multi-tenant SaaS platform that turns unstructured documents int
 ```
 [Dashboard Screenshot]
 ```
+<img width="1470" height="836" alt="Captura de Tela 2026-04-11 às 14 15 00" src="https://github.com/user-attachments/assets/84a886ea-8688-4b5c-9fa0-f714d0a6a223" />
+
 ```
 [Analytics Screenshot]
 ```
+<img width="1470" height="836" alt="Captura de Tela 2026-04-11 às 14 15 26" src="https://github.com/user-attachments/assets/b6877a59-23b0-4234-a906-ec9de8d47639" />
+
 ```
 [Pipeline Builder Screenshot]
 ```
+<img width="1470" height="837" alt="Captura de Tela 2026-04-11 às 14 15 12" src="https://github.com/user-attachments/assets/f0b541b7-0759-412a-be2c-a7e1a7813b6b" />
+
 ```
 [Review Queue Screenshot]
 ```
