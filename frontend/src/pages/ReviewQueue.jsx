@@ -81,7 +81,7 @@ export default function ReviewQueue() {
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
           <span className="text-lg font-bold tracking-tight text-slate-100">DocFlow AI</span>
           <nav className="flex items-center gap-1">
-            <Link to="/" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-surface-3 transition-colors flex items-center gap-1.5">
+            <Link to="/dashboard" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-surface-3 transition-colors flex items-center gap-1.5">
               <LayoutDashboard className="w-3.5 h-3.5" /> Dashboard
             </Link>
             <Link to="/pipelines" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-surface-3 transition-colors flex items-center gap-1.5">

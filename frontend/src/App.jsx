@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -11,12 +12,18 @@ function RequireAuth({ children }) {
   return token ? children : <Navigate to="/login" replace />
 }
 
+function RootRoute() {
+  const token = localStorage.getItem('access_token')
+  return token ? <Navigate to="/dashboard" replace /> : <Landing />
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/login"    element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/"          element={<RequireAuth><Dashboard /></RequireAuth>} />
+      <Route path="/"          element={<RootRoute />} />
+      <Route path="/login"     element={<Login />} />
+      <Route path="/register"  element={<Register />} />
+      <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
       <Route path="/pipelines" element={<RequireAuth><PipelineBuilder /></RequireAuth>} />
       <Route path="/review"    element={<RequireAuth><ReviewQueue /></RequireAuth>} />
       <Route path="/analytics" element={<RequireAuth><Analytics /></RequireAuth>} />

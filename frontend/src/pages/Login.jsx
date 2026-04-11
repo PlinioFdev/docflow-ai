@@ -25,7 +25,7 @@ export default function Login() {
       const workspaceId = profile.data?.results?.[0]?.id ?? profile.data?.[0]?.id ?? ''
       localStorage.setItem('workspace_id', workspaceId)
 
-      navigate('/')
+      navigate('/dashboard')
     } catch (err) {
       setError(err.response?.data?.detail ?? 'Invalid credentials.')
     } finally {
