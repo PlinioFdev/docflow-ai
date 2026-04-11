@@ -4,6 +4,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import PipelineBuilder from './pages/PipelineBuilder'
 import ReviewQueue from './pages/ReviewQueue'
+import Analytics from './pages/Analytics'
 
 function RequireAuth({ children }) {
   const token = localStorage.getItem('access_token')
@@ -15,10 +16,11 @@ export default function App() {
     <Routes>
       <Route path="/login"    element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+      <Route path="/"          element={<RequireAuth><Dashboard /></RequireAuth>} />
       <Route path="/pipelines" element={<RequireAuth><PipelineBuilder /></RequireAuth>} />
       <Route path="/review"    element={<RequireAuth><ReviewQueue /></RequireAuth>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/analytics" element={<RequireAuth><Analytics /></RequireAuth>} />
+      <Route path="*"          element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

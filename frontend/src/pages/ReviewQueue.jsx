@@ -1,55 +1,59 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle, XCircle, LayoutDashboard, GitBranch, ClipboardList } from 'lucide-react'
+import { CheckCircle, XCircle, LayoutDashboard, GitBranch, ClipboardList, BarChart2 } from 'lucide-react'
 import client from '../api/client'
 import ConfidenceBar from '../components/ConfidenceBar'
 
 export default function ReviewQueue() {
-  const [jobs, setJobs] = useState([])
-  const [loading, setLoading] = useState(true)
-  // Track edits per job: { [jobId]: { [fieldName]: editedValue } }
-  const [edits, setEdits] = useState({})
+  const [jobs, setJobs]         = useState([])
+  const [docMap, setDocMap]     = useState({})   // id → document
+  const [loading, setLoading]   = useState(true)
+  const [edits, setEdits]       = useState({})   // { [jobId]: { [field]: value } }
   const [submitting, setSubmitting] = useState({})
+  const [errors, setErrors]     = useState({})   // { [jobId]: string }
 
-  const fetchJobs = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const { data } = await client.get('/api/v1/processing-jobs/')
-      const all = data?.results ?? data ?? []
-      setJobs(all.filter((j) => j.needs_review && j.status === 'completed'))
+      const [jRes, dRes] = await Promise.all([
+        client.get('/api/v1/processing-jobs/'),
+        client.get('/api/v1/documents/'),
+      ])
+      const allJobs  = jRes.data?.results ?? jRes.data ?? []
+      const allDocs  = dRes.data?.results ?? dRes.data ?? []
+      setJobs(allJobs.filter((j) => j.needs_review && j.status === 'completed'))
+      setDocMap(Object.fromEntries(allDocs.map((d) => [d.id, d])))
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchJobs() }, [fetchJobs])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const setFieldEdit = (jobId, fieldName, value) =>
-    setEdits((prev) => ({
-      ...prev,
-      [jobId]: { ...(prev[jobId] ?? {}), [fieldName]: value },
-    }))
+    setEdits((prev) => ({ ...prev, [jobId]: { ...(prev[jobId] ?? {}), [fieldName]: value } }))
 
   const getFieldValue = (job, fieldName) =>
     edits[job.id]?.[fieldName] ?? job.result?.fields?.[fieldName]?.value ?? ''
 
-  const handleConfirm = async (job) => {
-    setSubmitting((p) => ({ ...p, [job.id]: 'confirming' }))
+  const handleApprove = async (job) => {
+    setSubmitting((p) => ({ ...p, [job.id]: 'approving' }))
+    setErrors((p) => ({ ...p, [job.id]: null }))
     try {
-      // Merge edits back into result and mark reviewed
-      const updatedResult = {
-        ...job.result,
-        fields: Object.fromEntries(
-          Object.entries(job.result?.fields ?? {}).map(([k, v]) => [
-            k,
-            { ...v, value: edits[job.id]?.[k] ?? v.value, reviewed: true },
-          ])
-        ),
-        reviewed: true,
-      }
-      await client.patch(`/api/v1/processing-jobs/${job.id}/`, { result: updatedResult })
+      const updatedFields = Object.fromEntries(
+        Object.entries(job.result?.fields ?? {}).map(([k, v]) => [
+          k,
+          { ...v, value: edits[job.id]?.[k] ?? v.value, reviewed: true },
+        ])
+      )
+      await client.patch(`/api/v1/processing-jobs/${job.id}/`, {
+        result: { ...job.result, fields: updatedFields, reviewed: true },
+      })
       setJobs((prev) => prev.filter((j) => j.id !== job.id))
     } catch (err) {
-      console.error(err)
+      const msg = err.response?.status === 405
+        ? 'Approve not yet supported by the API.'
+        : (err.response?.data?.detail ?? 'Request failed.')
+      setErrors((p) => ({ ...p, [job.id]: msg }))
     } finally {
       setSubmitting((p) => ({ ...p, [job.id]: null }))
     }
@@ -57,11 +61,15 @@ export default function ReviewQueue() {
 
   const handleReject = async (job) => {
     setSubmitting((p) => ({ ...p, [job.id]: 'rejecting' }))
+    setErrors((p) => ({ ...p, [job.id]: null }))
     try {
       await client.patch(`/api/v1/processing-jobs/${job.id}/`, { status: 'failed' })
       setJobs((prev) => prev.filter((j) => j.id !== job.id))
     } catch (err) {
-      console.error(err)
+      const msg = err.response?.status === 405
+        ? 'Reject not yet supported by the API.'
+        : (err.response?.data?.detail ?? 'Request failed.')
+      setErrors((p) => ({ ...p, [job.id]: msg }))
     } finally {
       setSubmitting((p) => ({ ...p, [job.id]: null }))
     }
@@ -82,6 +90,9 @@ export default function ReviewQueue() {
             <Link to="/review" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-100 bg-surface-3 flex items-center gap-1.5">
               <ClipboardList className="w-3.5 h-3.5" /> Review
             </Link>
+            <Link to="/analytics" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-surface-3 transition-colors flex items-center gap-1.5">
+              <BarChart2 className="w-3.5 h-3.5" /> Analytics
+            </Link>
           </nav>
         </div>
       </header>
@@ -90,84 +101,89 @@ export default function ReviewQueue() {
         <div>
           <h1 className="text-xl font-semibold text-slate-100">Review Queue</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Jobs below scored under 80% confidence. Verify and correct fields before confirming.
+            Jobs that scored under 80% confidence. Verify and correct fields before approving.
           </p>
         </div>
 
         {loading ? (
           <div className="space-y-4">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="h-40 rounded-2xl bg-surface-1 border border-surface-3 animate-pulse" />
+              <div key={i} className="h-48 rounded-2xl bg-surface-1 border border-surface-3 animate-pulse" />
             ))}
           </div>
         ) : jobs.length === 0 ? (
           <div className="text-center py-20 text-slate-600">
             <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Nothing to review — queue is clear.</p>
+            <p className="text-sm">Queue is clear — nothing to review.</p>
           </div>
         ) : (
           <div className="space-y-6">
             {jobs.map((job) => {
               const fields = job.result?.fields ?? {}
-              const busy = submitting[job.id]
+              const doc    = docMap[job.document]
+              const busy   = submitting[job.id]
+              const err    = errors[job.id]
+
               return (
-                <div
-                  key={job.id}
-                  className="bg-surface-1 border border-amber-900/30 rounded-2xl overflow-hidden"
-                >
-                  {/* Job header */}
-                  <div className="px-5 py-4 border-b border-surface-3 flex items-center justify-between gap-4">
+                <div key={job.id} className="bg-surface-1 border border-amber-900/30 rounded-2xl overflow-hidden">
+                  {/* Header */}
+                  <div className="px-5 py-4 border-b border-surface-3 flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-slate-100">Job {job.id.slice(0, 8)}…</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Document: {job.document_id?.slice(0, 8)}…
+                      <p className="text-sm font-medium text-slate-100">
+                        {doc?.name ?? `Document ${job.document?.slice(0, 8)}…`}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5 capitalize">
+                        {doc?.doc_type ?? 'unknown'} · Job {job.id.slice(0, 8)}…
                       </p>
                     </div>
-                    <div className="w-36">
-                      <p className="text-xs text-slate-500 mb-1">Overall confidence</p>
+                    <div className="w-40 flex-shrink-0">
+                      <p className="text-xs text-slate-500 mb-1.5">Overall confidence</p>
                       <ConfidenceBar score={job.confidence_score} />
                     </div>
                   </div>
 
                   {/* Fields */}
-                  <div className="px-5 py-4 space-y-3">
-                    {Object.entries(fields).map(([fieldName, fieldData]) => {
-                      const confidence = fieldData?.confidence ?? 0
-                      return (
-                        <div key={fieldName} className="grid grid-cols-3 gap-3 items-center">
-                          <div>
-                            <p className="text-xs font-medium text-slate-300 capitalize">
-                              {fieldName.replace(/_/g, ' ')}
-                            </p>
-                            <ConfidenceBar score={confidence} />
+                  {Object.keys(fields).length === 0 ? (
+                    <p className="px-5 py-4 text-xs text-slate-500">No extracted fields available.</p>
+                  ) : (
+                    <div className="divide-y divide-surface-3">
+                      {Object.entries(fields).map(([fieldName, fieldData]) => {
+                        const confidence = fieldData?.confidence ?? 0
+                        const borderClass =
+                          confidence < 0.6 ? 'border-red-900/60 focus:border-red-500/60'
+                          : confidence < 0.8 ? 'border-amber-900/60 focus:border-amber-500/60'
+                          : 'border-surface-3 focus:border-brand/60'
+
+                        return (
+                          <div key={fieldName} className="grid grid-cols-5 gap-4 items-center px-5 py-3">
+                            <div className="col-span-2">
+                              <p className="text-xs font-medium text-slate-300 capitalize mb-1">
+                                {fieldName.replace(/_/g, ' ')}
+                              </p>
+                              <ConfidenceBar score={confidence} />
+                            </div>
+                            <div className="col-span-3">
+                              <input
+                                value={getFieldValue(job, fieldName)}
+                                onChange={(e) => setFieldEdit(job.id, fieldName, e.target.value)}
+                                className={`w-full bg-surface-2 border rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none transition-colors ${borderClass}`}
+                              />
+                            </div>
                           </div>
-                          <div className="col-span-2">
-                            <input
-                              value={getFieldValue(job, fieldName)}
-                              onChange={(e) => setFieldEdit(job.id, fieldName, e.target.value)}
-                              className={`w-full bg-surface-2 border rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none transition-colors ${
-                                confidence < 0.6
-                                  ? 'border-red-900/60 focus:border-red-500/60'
-                                  : confidence < 0.8
-                                  ? 'border-amber-900/60 focus:border-amber-500/60'
-                                  : 'border-surface-3 focus:border-brand/60'
-                              }`}
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
 
                   {/* Actions */}
-                  <div className="px-5 py-3 border-t border-surface-3 flex gap-3">
+                  <div className="px-5 py-3 border-t border-surface-3 flex items-center gap-3">
                     <button
-                      onClick={() => handleConfirm(job)}
+                      onClick={() => handleApprove(job)}
                       disabled={!!busy}
                       className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                     >
                       <CheckCircle className="w-4 h-4" />
-                      {busy === 'confirming' ? 'Confirming…' : 'Confirm'}
+                      {busy === 'approving' ? 'Approving…' : 'Approve'}
                     </button>
                     <button
                       onClick={() => handleReject(job)}
@@ -177,6 +193,9 @@ export default function ReviewQueue() {
                       <XCircle className="w-4 h-4" />
                       {busy === 'rejecting' ? 'Rejecting…' : 'Reject'}
                     </button>
+                    {err && (
+                      <p className="text-xs text-red-400 ml-1">{err}</p>
+                    )}
                   </div>
                 </div>
               )

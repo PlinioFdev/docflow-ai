@@ -14,7 +14,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { Plus, GitBranch, LayoutDashboard, ClipboardList, Play } from 'lucide-react'
+import { Plus, GitBranch, LayoutDashboard, ClipboardList, Play, BarChart2 } from 'lucide-react'
 import client from '../api/client'
 import PipelineStageCard from '../components/PipelineStageCard'
 
@@ -22,42 +22,57 @@ const workspaceId = localStorage.getItem('workspace_id') ?? ''
 
 const STAGE_TYPES = ['extract', 'validate', 'transform', 'deliver']
 
-const defaultConfig = {
+const DEFAULT_CONFIG = {
   extract:   { fields: [] },
   validate:  { required_fields: [] },
   transform: { rules: {} },
   deliver:   { destination: 'internal' },
 }
 
+const STAGE_TYPE_META = {
+  extract:   { color: 'bg-indigo-900/50 text-indigo-300 border-indigo-800/40' },
+  validate:  { color: 'bg-emerald-900/50 text-emerald-300 border-emerald-800/40' },
+  transform: { color: 'bg-amber-900/50 text-amber-300 border-amber-800/40' },
+  deliver:   { color: 'bg-sky-900/50 text-sky-300 border-sky-800/40' },
+}
+
 function newStage(type) {
-  return { id: crypto.randomUUID(), type, name: `${type} stage`, config: defaultConfig[type] ?? {} }
+  return { id: crypto.randomUUID(), type, name: `${type} stage`, config: DEFAULT_CONFIG[type] ?? {} }
 }
 
 export default function PipelineBuilder() {
   const [pipelines, setPipelines] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [creating, setCreating]   = useState(false)
   const [pipelineName, setPipelineName] = useState('')
-  const [stages, setStages] = useState([])
-  const [saving, setSaving] = useState(false)
-  const [runDocId, setRunDocId] = useState('')
-  const [runMsg, setRunMsg] = useState(null)
+  const [stages, setStages]       = useState([])
+  const [saving, setSaving]       = useState(false)
+  // Per-pipeline run state: { [pipelineId]: { docId: '', msg: null, busy: false } }
+  const [runState, setRunState]   = useState({})
 
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const fetchPipelines = useCallback(async () => {
+  const setRun = (pipelineId, patch) =>
+    setRunState((prev) => ({ ...prev, [pipelineId]: { ...(prev[pipelineId] ?? {}), ...patch } }))
+
+  const fetchData = useCallback(async () => {
     try {
-      const { data } = await client.get('/api/v1/pipelines/')
-      setPipelines(data?.results ?? data ?? [])
+      const [pRes, dRes] = await Promise.all([
+        client.get('/api/v1/pipelines/'),
+        client.get('/api/v1/documents/'),
+      ])
+      setPipelines(pRes.data?.results ?? pRes.data ?? [])
+      setDocuments(dRes.data?.results ?? dRes.data ?? [])
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchPipelines() }, [fetchPipelines])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const handleDragEnd = ({ active, over }) => {
     if (!over || active.id === over.id) return
@@ -68,20 +83,19 @@ export default function PipelineBuilder() {
     })
   }
 
-  const addStage = (type) => setStages((prev) => [...prev, newStage(type)])
-  const removeStage = (id) => setStages((prev) => prev.filter((s) => s.id !== id))
+  const addStage    = (type) => setStages((prev) => [...prev, newStage(type)])
+  const removeStage = (id)   => setStages((prev) => prev.filter((s) => s.id !== id))
 
   const handleSave = async (e) => {
     e.preventDefault()
     if (!pipelineName.trim() || stages.length === 0) return
     setSaving(true)
     try {
-      const payload = {
+      const { data } = await client.post('/api/v1/pipelines/', {
         workspace: workspaceId,
         name: pipelineName.trim(),
         stages: stages.map(({ type, name, config }) => ({ type, name, config })),
-      }
-      const { data } = await client.post('/api/v1/pipelines/', payload)
+      })
       setPipelines((prev) => [data, ...prev])
       setCreating(false)
       setPipelineName('')
@@ -94,15 +108,17 @@ export default function PipelineBuilder() {
   }
 
   const handleRun = async (pipelineId) => {
-    if (!runDocId.trim()) return
-    setRunMsg(null)
+    const docId = runState[pipelineId]?.docId ?? ''
+    if (!docId) return
+    setRun(pipelineId, { busy: true, msg: null })
     try {
       const { data } = await client.post(`/api/v1/pipelines/${pipelineId}/run/`, {
-        document_id: runDocId.trim(),
+        document_id: docId,
       })
-      setRunMsg({ type: 'ok', text: `Job ${data.id} created — status: ${data.status}` })
+      setRun(pipelineId, { busy: false, msg: { type: 'ok', text: `Job created — status: ${data.status}` } })
     } catch (err) {
-      setRunMsg({ type: 'err', text: err.response?.data?.error ?? 'Run failed.' })
+      const text = err.response?.data?.error ?? err.response?.data?.detail ?? 'Run failed.'
+      setRun(pipelineId, { busy: false, msg: { type: 'err', text } })
     }
   }
 
@@ -121,6 +137,9 @@ export default function PipelineBuilder() {
             <Link to="/review" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-surface-3 transition-colors flex items-center gap-1.5">
               <ClipboardList className="w-3.5 h-3.5" /> Review
             </Link>
+            <Link to="/analytics" className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-100 hover:bg-surface-3 transition-colors flex items-center gap-1.5">
+              <BarChart2 className="w-3.5 h-3.5" /> Analytics
+            </Link>
           </nav>
           <button
             onClick={() => setCreating(true)}
@@ -134,7 +153,7 @@ export default function PipelineBuilder() {
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         {/* Builder panel */}
         {creating && (
-          <section className="bg-surface-1 border border-surface-3 rounded-2xl p-6 space-y-5">
+          <section className="bg-surface-1 border border-brand/30 rounded-2xl p-6 space-y-5">
             <h2 className="text-base font-semibold text-slate-100">New pipeline</h2>
 
             <div>
@@ -147,7 +166,6 @@ export default function PipelineBuilder() {
               />
             </div>
 
-            {/* Stage palette */}
             <div>
               <p className="text-xs font-medium text-slate-400 mb-2">Add stage</p>
               <div className="flex flex-wrap gap-2">
@@ -155,7 +173,7 @@ export default function PipelineBuilder() {
                   <button
                     key={type}
                     onClick={() => addStage(type)}
-                    className="capitalize text-xs px-3 py-1.5 rounded-lg bg-surface-3 hover:bg-surface-2 border border-surface-3 hover:border-brand/40 text-slate-300 transition-colors"
+                    className={`capitalize text-xs px-3 py-1.5 rounded-lg border transition-colors ${STAGE_TYPE_META[type].color}`}
                   >
                     + {type}
                   </button>
@@ -163,7 +181,6 @@ export default function PipelineBuilder() {
               </div>
             </div>
 
-            {/* Sortable stage list */}
             {stages.length > 0 && (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -176,7 +193,13 @@ export default function PipelineBuilder() {
               </DndContext>
             )}
 
-            <div className="flex gap-3 pt-2">
+            {stages.length === 0 && (
+              <p className="text-xs text-slate-600 text-center py-4 border border-dashed border-surface-3 rounded-xl">
+                Add at least one stage above
+              </p>
+            )}
+
+            <div className="flex gap-3 pt-1">
               <button
                 onClick={handleSave}
                 disabled={saving || !pipelineName.trim() || stages.length === 0}
@@ -201,55 +224,79 @@ export default function PipelineBuilder() {
           </h2>
 
           {loading ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {[...Array(2)].map((_, i) => (
-                <div key={i} className="h-20 rounded-xl bg-surface-1 border border-surface-3 animate-pulse" />
+                <div key={i} className="h-28 rounded-xl bg-surface-1 border border-surface-3 animate-pulse" />
               ))}
             </div>
           ) : pipelines.length === 0 ? (
-            <p className="text-sm text-slate-600 text-center py-12">No pipelines yet.</p>
+            <p className="text-sm text-slate-600 text-center py-12">
+              No pipelines yet. Click "New pipeline" to create one.
+            </p>
           ) : (
             <div className="space-y-3">
-              {pipelines.map((p) => (
-                <div key={p.id} className="bg-surface-1 border border-surface-3 rounded-xl px-5 py-4 space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium text-slate-100">{p.name}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {p.stages?.length ?? 0} stages · created {new Date(p.created_at).toLocaleDateString()}
-                      </p>
+              {pipelines.map((p) => {
+                const rs  = runState[p.id] ?? {}
+                return (
+                  <div key={p.id} className="bg-surface-1 border border-surface-3 rounded-xl px-5 py-4 space-y-4">
+                    {/* Pipeline info */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-slate-100">{p.name}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {p.stages?.length ?? 0} stages · {new Date(p.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(p.stages ?? []).map((s, i) => {
+                          const meta = STAGE_TYPE_META[s.type] ?? {}
+                          return (
+                            <span key={i} className={`text-xs px-2 py-0.5 rounded-full border capitalize ${meta.color}`}>
+                              {s.type}
+                            </span>
+                          )
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-1">
-                      {(p.stages ?? []).map((s, i) => (
-                        <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-surface-3 text-slate-400 capitalize">
-                          {s.type}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Run panel */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={runDocId}
-                      onChange={(e) => setRunDocId(e.target.value)}
-                      placeholder="Document ID to run…"
-                      className="flex-1 bg-surface-2 border border-surface-3 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-brand/60 transition-colors"
-                    />
-                    <button
-                      onClick={() => handleRun(p.id)}
-                      className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      <Play className="w-3 h-3" /> Run
-                    </button>
+                    {/* Run on document */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-slate-400">Run on document</p>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={rs.docId ?? ''}
+                          onChange={(e) => setRun(p.id, { docId: e.target.value, msg: null })}
+                          className="flex-1 bg-surface-2 border border-surface-3 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-brand/60 transition-colors appearance-none"
+                        >
+                          <option value="">Select a document…</option>
+                          {documents.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name} ({d.doc_type})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleRun(p.id)}
+                          disabled={rs.busy || !rs.docId}
+                          className="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Play className="w-3 h-3" />
+                          {rs.busy ? 'Running…' : 'Run'}
+                        </button>
+                      </div>
+                      {rs.msg && (
+                        <p className={`text-xs px-3 py-2 rounded-lg border ${
+                          rs.msg.type === 'ok'
+                            ? 'bg-emerald-900/20 text-emerald-300 border-emerald-900/40'
+                            : 'bg-red-900/20 text-red-400 border-red-900/40'
+                        }`}>
+                          {rs.msg.text}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {runMsg && (
-                    <p className={`text-xs px-3 py-2 rounded-lg ${runMsg.type === 'ok' ? 'bg-emerald-900/20 text-emerald-300 border border-emerald-900/40' : 'bg-red-900/20 text-red-400 border border-red-900/40'}`}>
-                      {runMsg.text}
-                    </p>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </section>
