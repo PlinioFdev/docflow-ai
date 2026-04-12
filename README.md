@@ -27,25 +27,23 @@ DocFlow AI is a multi-tenant SaaS platform that turns unstructured documents int
 
 ## Screenshots
 
-```
-[Dashboard Screenshot]
-```
-<img width="1470" height="836" alt="Captura de Tela 2026-04-11 às 14 15 00" src="https://github.com/user-attachments/assets/84a886ea-8688-4b5c-9fa0-f714d0a6a223" />
+**Landing Page**
+<img width="1470" height="837" alt="Landing Page" src="https://github.com/user-attachments/assets/ebd08f90-6a3f-410f-aaa1-0e7d2d4bbf6c" />
 
-```
-[Analytics Screenshot]
-```
-<img width="1470" height="836" alt="Captura de Tela 2026-04-11 às 14 15 26" src="https://github.com/user-attachments/assets/b6877a59-23b0-4234-a906-ec9de8d47639" />
+**Dashboard**
+<img width="1470" height="836" alt="Dashboard" src="https://github.com/user-attachments/assets/0a4dbbd9-ca20-4055-9b94-95ac4ac8177e" />
 
-```
-[Pipeline Builder Screenshot]
-```
-<img width="1470" height="837" alt="Captura de Tela 2026-04-11 às 14 15 12" src="https://github.com/user-attachments/assets/f0b541b7-0759-412a-be2c-a7e1a7813b6b" />
+**AI Extraction Modal**
+<img width="1469" height="836" alt="AI Extraction Modal" src="https://github.com/user-attachments/assets/81a69080-9753-49fb-ad0d-e3fd5dcf640b" />
 
-```
-[Review Queue Screenshot]
-```
-<img width="1470" height="835" alt="Captura de Tela 2026-04-11 às 14 23 42" src="https://github.com/user-attachments/assets/2091732a-8187-4738-9d36-09f63b9c5b79" />
+**Review Queue**
+<img width="1470" height="838" alt="Review Queue" src="https://github.com/user-attachments/assets/f97142db-ae85-4465-b896-b2b5ab32bb19" />
+
+**Pipeline Builder**
+<img width="1470" height="837" alt="Pipeline Builder" src="https://github.com/user-attachments/assets/d8a21528-ea28-47bd-bbaf-c48248690887" />
+
+**Analytics**
+<img width="1469" height="836" alt="Analytics" src="https://github.com/user-attachments/assets/8013df64-6275-41a6-85f8-3f6debc7dd16" />
 
 ---
 
@@ -57,11 +55,16 @@ DocFlow AI is a multi-tenant SaaS platform that turns unstructured documents int
 | JWT authentication | Email/password login with short-lived access tokens and refresh tokens |
 | Drag-and-drop upload | Drop files directly onto the dashboard; status updates appear in real time |
 | AI field extraction | Per-field confidence scores; configurable field lists per pipeline |
-| Visual pipeline builder | Drag-and-drop stage composer with Extract, Validate, Transform, and Deliver stages |
-| Real-time WebSocket | Processing status pushed to all connected clients in the workspace group |
-| Analytics dashboard | Document counts by status, average confidence, and daily processing totals |
+| Visual pipeline builder | Stage composer with Extract, Validate, Transform, and Deliver stages |
+| Real-time WebSocket | Processing status pushed to all connected clients; Live/Offline indicator in navbar |
+| Analytics dashboard | 6 metric cards, daily processing bar chart, and one-click CSV export |
 | Human review queue | Inline field editing with confidence-coloured inputs; one-click approve or reject |
-| REST API | Full CRUD API with JWT auth; Swagger UI available at `/api/docs/` |
+| Toast notifications | Success and error feedback on upload, delete, and pipeline run actions |
+| Document management | Inline delete with hover reveal, confirmation step, and undo-safe flow |
+| Status filtering | Filter documents by All / Processing / Completed / Needs Review / Failed |
+| Live search | Real-time document search by name without page reload |
+| Profile page | Workspace name, plan, email, and member-since date |
+| REST API | Full CRUD API with JWT auth; Swagger UI at `/api/docs/` |
 
 ---
 

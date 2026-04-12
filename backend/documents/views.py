@@ -73,7 +73,8 @@ class PipelineViewSet(viewsets.ModelViewSet):
         return Response(ProcessingJobSerializer(job).data, status=status.HTTP_201_CREATED)
 
 
-class ProcessingJobViewSet(viewsets.ReadOnlyModelViewSet):
+class ProcessingJobViewSet(viewsets.ModelViewSet):
+    http_method_names = ['get', 'patch', 'head', 'options']
     serializer_class = ProcessingJobSerializer
     permission_classes = [permissions.IsAuthenticated]
 

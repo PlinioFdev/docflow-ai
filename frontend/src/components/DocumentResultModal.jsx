@@ -28,7 +28,10 @@ export default function DocumentResultModal({ document, onClose }) {
     return () => { cancelled = true }
   }, [document.id])
 
-  const fields = job?.result?.fields ?? {}
+  const fields =
+    (job?.result?.fields && Object.keys(job.result.fields).length > 0)
+      ? job.result.fields
+      : job?.result?.stages?.find((s) => s.type === 'extract')?.output?.fields ?? {}
   const hasFields = Object.keys(fields).length > 0
 
   return (
